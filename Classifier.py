@@ -189,7 +189,7 @@ class Classifier:
         delta_badness = {}
         delta_goodies = {}
         if len(remaining) == 0:
-            return samples_goodies, samples_badness
+            return samples_goodies, samples_badness, delta_goodies, delta_badness, []
         if layer == 0:
             predictions, delta = self.predict(remaining, arch)  # arch_str -> pred_test_mae
         else:

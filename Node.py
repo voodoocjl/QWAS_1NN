@@ -184,11 +184,17 @@ class Node:
             if self.is_good_kid:
                 self.bag = self.parent.good_kid_data 
                 self.good_kid_data, self.bad_kid_data, self.good_kid_delta, self.bad_kid_delta, delta = self.classifier.split_predictions(self.bag, arch, self.layer, self.parent.good_kid_delta)
-                self.delta = delta[self.layer]
+                if len(delta) > 0:
+                    self.delta = delta[self.layer]
+                else:
+                    self.delta = 1
             else:
                 self.bag = self.parent.bad_kid_data
                 self.good_kid_data, self.bad_kid_data, self.good_kid_delta, self.bad_kid_delta, delta = self.classifier.split_predictions(self.bag, arch, self.layer, self.parent.bad_kid_delta)
-                self.delta = delta[self.layer]
+                if len(delta) > 0:
+                    self.delta = delta[self.layer]
+                else:
+                    self.delta = 1
         
 
 
