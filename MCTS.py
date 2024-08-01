@@ -655,7 +655,10 @@ if __name__ == '__main__':
 
     print('The best model: ', agent.best['acc'])
     # plot_2d_array(agent.best['model'])
-    # rank = 20
-    # print('Gate numbers of top {}: {}'.format(rank, analysis_result(agent.samples_true, rank)))
+    rank = 20
+    print('<0.8:', sum(value < 0.8 for value in list(agent.samples_true.values())))
+    print('(0.8, 0.82):', sum((value > 0.8) & (value < 0.82)  for value in list(agent.samples_true.values())))
+    print('>0.82:', sum(value > 0.82  for value in list(agent.samples_true.values())))
+    print('Gate numbers of top {}: {}'.format(rank, analysis_result(agent.samples_true, rank)))
     
         
