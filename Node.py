@@ -137,8 +137,8 @@ class Node:
         # coeff = 2 ** (5 - ceil(log2(self.id + 2)))
         if len(self.bag) == 0:
             return 0
-        # return self.x_bar + Cp*math.sqrt(2*math.log(self.parent.n)/self.n)
-        return self.x_bar + 2 * Cp*math.sqrt(2*math.log(self.parent.counter)/self.counter)
+        return self.x_bar
+        # return self.x_bar + 2 * Cp*math.sqrt(2*math.log(self.parent.counter)/self.counter)
 
 
     def get_xbar(self):
@@ -172,8 +172,9 @@ class Node:
 
 
     def predict(self, arch, method = None):
-        if self.parent == None and self.is_root == True and self.is_leaf == False:            
-            self.good_kid_data, self.bad_kid_data = self.classifier.split_predictions(self.bag, arch)
+        if self.parent == None and self.is_root == True and self.is_leaf == False:
+            self.good_kid_data, self.bad_kid_data, self.good_kid_delta, self.bad_kid_delta, delta = self.classifier.split_predictions(self.bag, arch)
+            self.delta = delta[self.layer]
         elif self.is_leaf:
             if self.is_good_kid:
                 self.bag = self.parent.good_kid_data
@@ -181,15 +182,14 @@ class Node:
                 self.bag = self.parent.bad_kid_data
         else:
             if self.is_good_kid:
-                self.bag = self.parent.good_kid_data
-                self.good_kid_data, self.bad_kid_data = self.classifier.split_predictions(self.bag, arch, self.layer)
-                # self.x_bar = xbar
+                self.bag = self.parent.good_kid_data 
+                self.good_kid_data, self.bad_kid_data, self.good_kid_delta, self.bad_kid_delta, delta = self.classifier.split_predictions(self.bag, arch, self.layer, self.parent.good_kid_delta)
+                self.delta = delta[self.layer]
             else:
                 self.bag = self.parent.bad_kid_data
-                self.good_kid_data, self.bad_kid_data = self.classifier.split_predictions(self.bag, arch, self.layer)
-                # self.x_bar = xbar
-        if method:
-            self.validation = self.bag.copy()
+                self.good_kid_data, self.bad_kid_data, self.good_kid_delta, self.bad_kid_delta, delta = self.classifier.split_predictions(self.bag, arch, self.layer, self.parent.bad_kid_delta)
+                self.delta = delta[self.layer]
+        
 
 
     def predict_validation(self):

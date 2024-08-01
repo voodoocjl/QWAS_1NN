@@ -166,38 +166,45 @@ class Classifier:
         if torch.cuda.is_available():
             remaining_archs = remaining_archs.cuda()
         
-        outputs = self.model(remaining_archs)
-        # xbar = outputs[:, 0].mean().tolist()
+        outputs = self.model(remaining_archs)       
 
         if torch.cuda.is_available():
             remaining_archs = remaining_archs.cpu()
             outputs         = outputs.cpu()
+        diff = -(outputs[0][:, 0, :] - outputs[0][:, 1, :]).abs().detach()
         result = {}
+        delta = {}
         for k in range(0, len(remaining_archs)):            
             arch_str = list(remaining.keys())[k]
             result[arch_str] = outputs[1][k].tolist()
+            delta[arch_str] = diff[k]
         assert len(result) == len(remaining)
-        return result
+        return result, delta
 
 
-    def split_predictions(self, remaining, arch, layer=0, method = None):
+    def split_predictions(self, remaining, arch, layer=0, delta = None):
         assert type(remaining) == type({})
         samples_badness = {}
         samples_goodies = {}
+        delta_badness = {}
+        delta_goodies = {}
         if len(remaining) == 0:
             return samples_goodies, samples_badness
         if layer == 0:
-            predictions = self.predict(remaining, arch)  # arch_str -> pred_test_mae
+            predictions, delta = self.predict(remaining, arch)  # arch_str -> pred_test_mae
         else:
             predictions = remaining
 
         for k, v in predictions.items():
             if v[layer] == 1 :                
                 samples_badness[k] = v
+                delta_badness[k] = delta[k]
             else:
-                samples_goodies[k] = v 
+                samples_goodies[k] = v
+                delta_goodies[k] = delta[k]
         assert len(samples_badness) + len(samples_goodies) == len(remaining)
-        return samples_goodies, samples_badness
+        delta = torch.exp(torch.stack(list(delta.values()))).mean(dim=0)
+        return samples_goodies, samples_badness, delta_goodies, delta_badness, delta
 
     """
     def predict_mean(self):

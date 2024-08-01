@@ -163,6 +163,6 @@ class FC(nn.Module):
         preds_c1 = torch.argmax(y1, dim=1)
         preds_c2 = torch.argmax(y2, dim=1)
         preds_c3 = torch.argmax(y3, dim=1)
-        preds = torch.stack((preds_c1, preds_c2, preds_c3),dim=1)
+        preds = torch.stack((preds_c3, preds_c2, preds_c1),dim=1)
        
-        return [torch.stack((y1, y2, y3), dim=1).transpose(1,2), preds]
+        return [torch.stack((y3, y2, y1), dim=1).transpose(1,2), preds]

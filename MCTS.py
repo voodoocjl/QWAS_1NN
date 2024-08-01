@@ -293,7 +293,11 @@ class MCTS:
             UCT = []
             for i in curt_node.kids:
                 UCT.append(i.get_uct(self.Cp))
-            curt_node = curt_node.kids[np.random.choice(np.argwhere(UCT == np.amax(UCT)).reshape(-1), 1)[0]]
+            if torch.rand(1) < curt_node.delta:
+                id = torch.randint(0, len(curt_node.kids), (1,))
+            else:
+                id = np.random.choice(np.argwhere(UCT == np.amax(UCT)).reshape(-1), 1)[0]
+            curt_node = curt_node.kids[id]
             self.nodes[curt_node.id].counter += 1
         return curt_node
 
