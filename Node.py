@@ -137,8 +137,8 @@ class Node:
         # coeff = 2 ** (5 - ceil(log2(self.id + 2)))
         if len(self.bag) == 0:
             return 0
-        return self.x_bar
-        # return self.x_bar + 2 * Cp*math.sqrt(2*math.log(self.parent.counter)/self.counter)
+        # return self.x_bar
+        return self.x_bar + 2 * Cp*math.sqrt(2*math.log(self.parent.counter)/self.counter)
 
 
     def get_xbar(self):
