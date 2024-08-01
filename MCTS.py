@@ -146,6 +146,7 @@ class MCTS:
         design = translator(single, enta, 'full', self.ARCH_CODE)        
         best_model, report = Scheme(design, self.task, strategy, epochs)
         self.weight = best_model.state_dict()
+        self.samples_true[json.dumps(np.int8(arch).tolist())] = report['mae']
         self.samples_compact = {}
         if report['mae'] > self.best['acc']:
             self.best['acc'] = report['mae']
