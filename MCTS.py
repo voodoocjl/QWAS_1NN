@@ -578,12 +578,12 @@ def create_agent(task, arch_code, node=None):
         enta = agent.insert_job(empty[1], enta)
 
         # strong entanglement
-        n_qubits = arch_code[0]
-        n_layers = arch_code[1]
-        single = [[i]+[1]*2*n_layers for i in range(1,n_qubits+1)]
-        enta = [[i]+[i+1]*n_layers for i in range(1,n_qubits)]+[[n_qubits]+[1]*n_layers]
-        agent.explorations['single'] = single
-        agent.explorations['enta'] = enta
+        # n_qubits = arch_code[0]
+        # n_layers = arch_code[1]
+        # single = [[i]+[1]*2*n_layers for i in range(1,n_qubits+1)]
+        # enta = [[i]+[i+1]*n_layers for i in range(1,n_qubits)]+[[n_qubits]+[1]*n_layers]
+        # agent.explorations['single'] = single
+        # agent.explorations['enta'] = enta
         
         design = translator(single, enta, 'full', arch_code)
         if weights and weights[-1] == 'init_weight':            
@@ -616,6 +616,7 @@ if __name__ == '__main__':
     # saved = 'states/mcts_agent_329'
     # task = 'FASHION'
     task = 'MNIST'
+    task = 'MNIST-10'
     # task = 'MOSI'
     if task != 'MOSI':
         from schemes import Scheme
@@ -629,7 +630,7 @@ if __name__ == '__main__':
     check_file(task)
     
     arch_code = [10, 4]  # qubits, layer
-    arch_code = [4, 4]  #MNIST-4
+    # arch_code = [4, 4]  #MNIST-4
     # arch_code = [7, 5]
 
     agent = create_agent(task, arch_code, saved)
