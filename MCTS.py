@@ -615,7 +615,8 @@ if __name__ == '__main__':
     saved = None
     # saved = 'states/mcts_agent_329'
     # task = 'FASHION'
-    task = 'MNIST'
+    # task = 'MNIST'
+    task = 'MNIST-10'
     # task = 'MOSI'
     if task != 'MOSI':
         from schemes import Scheme
@@ -629,7 +630,7 @@ if __name__ == '__main__':
     check_file(task)
     
     arch_code = [10, 4]  # qubits, layer
-    arch_code = [4, 4]  #MNIST-4
+    # arch_code = [4, 4]  #MNIST-4
     # arch_code = [7, 5]
 
     agent = create_agent(task, arch_code, saved)

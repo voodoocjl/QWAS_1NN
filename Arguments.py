@@ -13,13 +13,13 @@ class Arguments:
             self.sampling = 5
 
             self.n_layers = 4
-            self.base_code = [self.n_layers, 2, 3, 4, 1]
+            # self.base_code = [self.n_layers, 2, 3, 4, 1]
             self.exploration = [0.001, 0.002, 0.003]
 
             # self.task    = 'MNIST'
             # self.task    = 'FASHION'
             # self.task    = 'MOSI'
-            self.backend    = 'tq'
+            self.backend    = 'tq'            
             # self.digits_of_interest = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
             self.digits_of_interest = [0, 1, 2, 3]
             self.train_valid_split_ratio = [0.95, 0.05]
@@ -28,6 +28,24 @@ class Arguments:
             self.file_single = 'search_space_mnist_single'
             self.file_enta   = 'search_space_mnist_enta'
             self.kernel      = 6
+
+            if task == 'MNIST-10' or 'FASHION-10':
+                self.n_qubits   = 10           
+                
+                self.epochs     = 1
+                self.batch_size = 256        
+                self.sampling = 5
+                self.kernel      = 4
+
+                self.n_layers = 4
+                self.base_code = [self.n_layers, 2, 3, 4, 1]
+                self.exploration = [0.001, 0.002, 0.003]
+
+                self.backend    = 'tq'            
+                self.digits_of_interest = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+                self.file_single = 'search_space_mnist_full_single'
+                self.file_enta   = 'search_space_mnist_full_enta'                
+
         else:
             self.n_qubits   = 7
 
