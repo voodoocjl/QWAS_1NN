@@ -222,6 +222,7 @@ class MCTS:
             # print("\ncollect " + str(len(self.TASK_QUEUE)) + " nets for re-initializing MCTS {}".format(self.ROOT.base_code))    
 
     def dump_all_states(self, num_samples):
+        self.reset_node_data()
         node_path = 'states/mcts_agent'
         with open(node_path+'_'+str(num_samples), 'wb') as outfile:
             pickle.dump(self, outfile)
