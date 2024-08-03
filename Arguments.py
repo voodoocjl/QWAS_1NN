@@ -1,5 +1,5 @@
 class Arguments:
-    def __init__(self, task = 'MNIST'):
+    def __init__(self, task = 'MNIST-10'):
 
         self.device     = 'cpu'        
         self.clr        = 0.005
@@ -29,7 +29,7 @@ class Arguments:
             self.file_enta   = 'search_space_mnist_enta'
             self.kernel      = 6
 
-            if task == 'MNIST-10' or 'FASHION-10':
+            if task == ('MNIST-10' or 'FASHION-10'):
                 self.n_qubits   = 10           
                 
                 self.epochs     = 1
