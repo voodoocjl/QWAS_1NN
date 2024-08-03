@@ -33,6 +33,10 @@ class Node:
         # data for good and bad kids, respectively
         self.good_kid_data = {}
         self.bad_kid_data  = {}
+        self.bad_labels    = {}
+        self.good_labels   = {}
+        self.good_kid_delta = {}
+        self.bad_kid_delta = {}
 
         self.is_leaf       = True
         self.id            = Node.obj_counter
@@ -56,6 +60,11 @@ class Node:
         self.bag.clear()
         self.bad_kid_data.clear()
         self.good_kid_data.clear()
+        if not self.is_leaf:
+            self.bad_labels.clear()       
+            self.good_labels.clear()
+            self.good_kid_delta.clear()
+            self.bad_kid_delta.clear()
 
     def set_arch(self, phase, code):
         if phase == 0:            

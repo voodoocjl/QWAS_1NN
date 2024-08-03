@@ -102,7 +102,7 @@ class MCTS:
 
         if self.task != 'MOSI':
             sorted_changes = [k for k, v in sorted(self.samples_compact.items(), key=lambda x: x[1], reverse=True)]
-            epochs = 20
+            epochs = 10
             samples = 10
             file_single = args.file_single
             file_enta = args.file_enta
@@ -223,6 +223,7 @@ class MCTS:
 
     def dump_all_states(self, num_samples):
         node_path = 'states/mcts_agent'
+        self.reset_node_data()
         with open(node_path+'_'+str(num_samples), 'wb') as outfile:
             pickle.dump(self, outfile)
 
