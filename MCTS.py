@@ -66,7 +66,7 @@ class MCTS:
         self.ROOT = self.nodes[0]
         self.CURT = self.ROOT
         self.weight = 'init'        
-        self.explorations = {'phase': 0, 'iteration': 0, 'single':None, 'enta': None, 'rate': [0.001, 0.002, 0.003], 'rate_decay': [0.006, 0.004, 0.002, 0]}
+        self.explorations = {'phase': 0, 'iteration': 0, 'single':None, 'enta': None, 'rate': [0.002, 0.001, 0.003], 'rate_decay': [0.006, 0.004, 0.002, 0]}
         self.best = {'acc': 0, 'model':[]}
         self.task = ''
         self.history = [[], []]
@@ -102,8 +102,8 @@ class MCTS:
 
         if self.task != 'MOSI':
             sorted_changes = [k for k, v in sorted(self.samples_compact.items(), key=lambda x: x[1], reverse=True)]
-            epochs = 10
-            samples = 10
+            epochs = 3
+            samples = 50
             file_single = args.file_single
             file_enta = args.file_enta
         else:
@@ -162,7 +162,7 @@ class MCTS:
             metrics = report['mae']
             writer.writerow([self.ITERATION, best_change_full, metrics])
         
-        if self.stages == 3:
+        if self.stages == 1:
             self.stages = 0
             self.history[phase].append(qubits)
             phase = 1 - phase       # switch phase
@@ -246,7 +246,7 @@ class MCTS:
     def populate_training_data(self):
         self.reset_node_data()
         for k, v in self.samples.items():
-            self.ROOT.put_in_bag(json.loads(k), v)    
+            self.ROOT.put_in_bag(json.loads(k), v)
 
 
     def populate_prediction_data(self):
@@ -391,8 +391,8 @@ class MCTS:
             period = 5
             number = 50
         else:
-            period = 3
-            number = 10
+            period = 1
+            number = 50
 
         if (self.ITERATION % period == 0): 
             if self.ITERATION == 0:
@@ -444,60 +444,24 @@ class MCTS:
         # # sampling nodes
         # # nodes = [0, 1, 2, 3, 8, 12, 13, 14, 15]
         # nodes = [0, 3, 12, 15]
-        # sampling_node(self, nodes, dataset, self.ITERATION)
-        
-        random.seed(self.ITERATION)
-        print('Used Qubits:', self.qubit_used)
-        for i in range(0, 10):
-            # select
-            target_bin   = self.select()
-            # if self.ROOT.base_code == None:
-            #     qubits = None
-            # else:
-            #     qubits = self.qubit_used
-            qubits = self.qubit_used
-            sampled_arch = target_bin.sample_arch(qubits)
-            # NOTED: the sampled arch can be None 
-            if sampled_arch is not None:                    
-                # push the arch into task queue
-                if json.dumps(sampled_arch) not in self.DISPATCHED_JOB:
-                    self.TASK_QUEUE.append(sampled_arch)
-                    # self.search_space.remove(sampled_arch)
-                    self.sample_nodes.append(target_bin.id-7)
-            else:
-                # trail 1: pick a network from the left leaf
-                for n in self.nodes:
-                    if n.is_leaf == True:
-                        sampled_arch = n.sample_arch(qubits)
-                        if sampled_arch is not None:
-                            print("\nselected node" + str(n.id-7) + " in leaf layer")                                
-                            # print("sampled arch:", sampled_arch)
-                            if json.dumps(sampled_arch) not in self.DISPATCHED_JOB:
-                                self.TASK_QUEUE.append(sampled_arch)
-                                # self.search_space.remove(sampled_arch)
-                                self.sample_nodes.append(n.id-7)
-                                break
-                        else:
-                            continue
-            if type(sampled_arch[0]) == type([]):
-                arch = sampled_arch[-1]
-            else:
-                arch = sampled_arch
-            self.search_space.remove(arch)                          
+        # sampling_node(self, nodes, dataset, self.ITERATION)        
+                            
 
 
 def Scheme_mp(design, job, task, weight, i, q=None):
     step = len(design)    
     if task != 'MOSI':
-        from schemes import Scheme
+        from schemes import Scheme, pretrain
         epoch = 1
     else:
         from schemes_mosi import Scheme
         epoch = 3
     for j in range(step):
         print('Arch:', job[j][-1])
-        _, report = Scheme(design[j], task, weight, epoch, verbs=1)
-        q.put([i*step+j, report['mae']])
+        # _, report = Scheme(design[j], task, weight, epoch, verbs=1)
+        report = pretrain(design[j], task, weight)
+        q.put([i*step+j, report])
+        # q.put([i*step+j, report['mae']])
 
 def count_gates(arch, coeff=None):
     # x = [item for i in [2,3,4,1] for item in [1,1,i]]
@@ -564,7 +528,7 @@ def create_agent(task, arch_code, node=None):
         with open(path[1], 'rb') as file:
             search_space_enta = pickle.load(file)
 
-        agent = MCTS(search_space_single, 4, arch_code)
+        agent = MCTS(search_space_single, 2, arch_code)
         agent.task = task       
                   
 
@@ -622,7 +586,7 @@ if __name__ == '__main__':
     if task != 'MOSI':
         from schemes import Scheme
         from FusionModel import translator
-        num_processes = 2
+        num_processes = 1
     else:
         from schemes_mosi import Scheme
         from Mosi_Model import translator
@@ -638,12 +602,13 @@ if __name__ == '__main__':
     ITERATION = agent.ITERATION
      
 
-    for iter in range(ITERATION, 100):
+    for iter in range(ITERATION, 50):
         jobs, designs, archs, nodes = agent.early_search(iter)
         results = {}
         n_jobs = len(jobs)
         step = n_jobs // num_processes
-        res = n_jobs % num_processes        
+        res = n_jobs % num_processes 
+        t = time.time()       
         with Manager() as manager:
             q = manager.Queue()
             with mp.Pool(processes = num_processes) as pool:        
@@ -652,6 +617,7 @@ if __name__ == '__main__':
             while not q.empty():
                 [i, acc] = q.get()
                 results[i] = acc
+        print('time: ', time.time() - t)
         # results = {5: 0.5149, 0: 0.5273, 6: 0.5296, 1: 0.5481, 7: 0.5082, 2: 0.5216, 3: 0.518, 8: 0.5106, 4: 0.5315, 9: 0.5394}
 
         agent.late_search(jobs, results, archs, nodes)

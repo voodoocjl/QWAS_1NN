@@ -156,13 +156,15 @@ class FC(nn.Module):
         y2 = self.cls2(y2)
         y3 = self.cls3(y3)
 
-        # c1 = torch.softmax(y1,1)
-        # c2 = torch.softmax(y2,1)
-        # c3 = torch.softmax(y3,1)
+        # logits = torch.stack((y3, y2, y1), dim=1).transpose(1,2)
+        logits = y3.unsqueeze(-1)
+
 
         preds_c1 = torch.argmax(y1, dim=1)
         preds_c2 = torch.argmax(y2, dim=1)
         preds_c3 = torch.argmax(y3, dim=1)
-        preds = torch.stack((preds_c3, preds_c2, preds_c1),dim=1)
+        # preds = torch.stack((preds_c3, preds_c2, preds_c1),dim=1)
+        preds = preds_c3.unsqueeze(-1)
+
        
-        return [torch.stack((y3, y2, y1), dim=1).transpose(1,2), preds]
+        return [logits, preds]

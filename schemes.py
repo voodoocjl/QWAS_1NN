@@ -145,6 +145,24 @@ def Scheme(design, task, weight='base', epochs=None, verbs=None, save=None):
         torch.save(best_model.state_dict(), 'weights/init_weight')
     return best_model, report
 
+def pretrain(design, task, weight):    
+
+    args = Arguments(task)
+    
+    if task == 'MOSI':
+        dataloader = MOSIDataLoaders(args)
+    else:
+        dataloader = MNISTDataLoaders(args, task)
+   
+    train_loader, val_loader, test_loader = dataloader
+    model = QNet(args, design).to(args.device)
+    model.load_state_dict(weight, strict= True)
+    
+    val_loss = evaluate(model, val_loader, args)
+    display(val_loss)
+    
+    return val_loss
+
 
 if __name__ == '__main__':
     single = None
@@ -153,13 +171,6 @@ if __name__ == '__main__':
     # single = [[i] + [0]*8 for i in range(1,5)]
     enta = [[i] + [i]*4 for i in range(1,5)]
    
-    
-    # enta = [[4, 1, 1, 3, 1]]  #83.738
-    # enta = [[3, 3, 3, 2, 2]]  #83.3
-    # enta = [[3, 3, 3, 1, 2]]
-    # import pickle
-    # with open('search_space_mnist_single', 'rb') as file:
-    #     search_space = pickle.load(file)
     arch_code = [4, 4]
     n_layers = 4
     n_qubits = 4

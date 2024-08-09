@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from sklearn.metrics import accuracy_score
 from Network import Attention, RNN, normalize, FC
 from FusionModel import cir_to_matrix
+import time
 
 torch.cuda.is_available = lambda : False
 
@@ -22,8 +23,9 @@ def get_label(energy, mean = None):
     #     label[i] = energy[i] > energy_mean
 
     x = energy
+    height = 2    #MCTS TREE height
     a = [[i for i in range(len(x))]]
-    for i in range(1,4):
+    for i in range(1,height):
         t = []
         for j in range(2**(i-1)):        
             index = a[j]
@@ -34,12 +36,12 @@ def get_label(energy, mean = None):
             t.append(torch.tensor([item for item in index if x[item] >= mean]))
             t.append(torch.tensor([item for item in index if x[item] < mean]))
         a = t
-    label = torch.zeros((len(x), 3))
+    label = torch.zeros((len(x), height-1))
     for i in range(len(a)):
         index = a[i]
         if len(index):
             for j in range(len(index)):
-                string_num = bin(i)[2:].zfill(3)
+                string_num = bin(i)[2:].zfill(height-1)
                 label[index[j]] = torch.tensor([int(char) for char in string_num])
     return label
 
@@ -69,8 +71,7 @@ class Classifier:
         # self.model            = Mlp(self.input_dim_2d, 6, 2)        
         # self.model            = RNN(arch_code[0], 16, 2)
         self.model            = FC(arch_code)
-        if torch.cuda.is_available():
-            self.model.cuda()
+        
         self.loss_fn          = nn.CrossEntropyLoss() #nn.MSELoss()
         self.l_rate           = 0.001
         self.optimizer        = optim.Adam(self.model.parameters(), lr=self.l_rate, betas=(0.9, 0.999), eps=1e-08)
@@ -123,8 +124,9 @@ class Classifier:
         # maeinv = self.maeinv
         # train_data = TensorDataset(nets, maeinv, labels)
         train_data = TensorDataset(nets, labels)
-
-        train_loader = DataLoader(train_data, batch_size=128, shuffle=True)
+        train_loader = DataLoader(train_data, batch_size=64, shuffle=True)
+        if torch.cuda.is_available():
+            self.model.cuda()
         for epoch in range(self.epochs):
             for x, y in train_loader:
                 # clear grads
@@ -142,8 +144,8 @@ class Classifier:
         # training accuracy
         pred = self.model(nets)
         
-        pred_label = pred[1].float()
-        true_label = self.labels.cpu()
+        pred_label = pred[1].float().cpu()
+        true_label = self.labels.cpu()        
         acc = accuracy_score(true_label.numpy(), pred_label.numpy())
         self.training_accuracy.append(acc)    
 
@@ -165,13 +167,13 @@ class Classifier:
                 
         if torch.cuda.is_available():
             remaining_archs = remaining_archs.cuda()
-        
-        outputs = self.model(remaining_archs)       
-
+        t1 = time.time()
+        outputs = self.model(remaining_archs)
+        print('Prediction time: ', time.time()-t1)
         if torch.cuda.is_available():
             remaining_archs = remaining_archs.cpu()
-            outputs         = outputs.cpu()
-        diff = -(outputs[0][:, 0, :] - outputs[0][:, 1, :]).abs().detach()
+            # outputs         = outputs.cpu()
+        diff = -(outputs[0][:, 0, :] - outputs[0][:, 1, :]).abs().detach().cpu()
         result = {}
         delta = {}
         for k in range(0, len(remaining_archs)):            
@@ -245,11 +247,11 @@ class Classifier:
             outputs = self.model(self.nets)
             if torch.cuda.is_available():
                 self.nets = self.nets.cpu()
-                outputs   = outputs.cpu()
+                # outputs   = outputs.cpu()
             predictions = {}
             for k in range(0, len(self.nets)):            
                 arch_str = list(self.samples)[k]
-                predictions[arch_str] = outputs[1][k].detach().numpy().tolist()  # arch_str -> pred_label
+                predictions[arch_str] = outputs[1][k].detach().cpu().numpy().tolist()  # arch_str -> pred_label
             assert len(predictions) == len(self.nets)        
         else:
             predictions = self.pred_labels
