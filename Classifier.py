@@ -120,13 +120,12 @@ class Classifier:
         # linear, mlp
         nets = self.nets
         # labels = 2 * self.labels - 1
-        labels = self.labels
-        # maeinv = self.maeinv
-        # train_data = TensorDataset(nets, maeinv, labels)
+        labels = self.labels        
         train_data = TensorDataset(nets, labels)
         train_loader = DataLoader(train_data, batch_size=64, shuffle=True)
         if torch.cuda.is_available():
-            self.model.cuda()
+            self.model.cuda()        
+
         for epoch in range(self.epochs):
             for x, y in train_loader:
                 # clear grads
@@ -138,7 +137,10 @@ class Classifier:
                 # loss = loss_mae + loss_t
                 loss = loss_t
                 loss.backward()  # back props
-                nn.utils.clip_grad_norm_(self.model.parameters(), 5)
+                # grads = [param.grad.detach().flatten() for param in self.model.parameters() if param.grad is not None]
+                # norm = torch.cat(grads).norm()
+                # print('Grad Norm: ', norm)
+                # nn.utils.clip_grad_norm_(self.model.parameters(), 5)
                 self.optimizer.step()  # update the parameters
 
         # training accuracy
@@ -174,14 +176,17 @@ class Classifier:
             remaining_archs = remaining_archs.cpu()
             # outputs         = outputs.cpu()
         diff = -(outputs[0][:, 0, :] - outputs[0][:, 1, :]).abs().detach().cpu()
-        result = {}
-        delta = {}
-        for k in range(0, len(remaining_archs)):            
-            arch_str = list(remaining.keys())[k]
-            result[arch_str] = outputs[1][k].tolist()
-            delta[arch_str] = diff[k]
-        assert len(result) == len(remaining)
-        return result, delta
+        result = []
+        # delta = []
+        # for k in range(0, len(remaining_archs)):            
+        #     arch_str = list(remaining.keys())[k]
+        #     result[arch_str] = outputs[1][k].tolist()
+        #     delta[arch_str] = diff[k]
+        result.append(list(remaining.keys()))
+        result.append( outputs[1].tolist())
+        # delta = diff.tolist()
+        assert len(result[0]) == len(remaining)
+        return result, diff
 
 
     def split_predictions(self, remaining, arch, layer=0, delta = None):
@@ -197,15 +202,16 @@ class Classifier:
         else:
             predictions = remaining
 
-        for k, v in predictions.items():
+        for index, (k, v) in enumerate(zip(predictions[0], predictions[1])):
             if v[layer] == 1 :                
                 samples_badness[k] = v
-                delta_badness[k] = delta[k]
+                delta_badness[k] = delta[index]
             else:
                 samples_goodies[k] = v
-                delta_goodies[k] = delta[k]
+                delta_goodies[k] = delta[index]
+        
         assert len(samples_badness) + len(samples_goodies) == len(remaining)
-        delta = torch.exp(torch.stack(list(delta.values()))).mean(dim=0)
+        delta = torch.exp(delta).mean(dim=0)
         return samples_goodies, samples_badness, delta_goodies, delta_badness, delta
 
     """
@@ -247,12 +253,12 @@ class Classifier:
             outputs = self.model(self.nets)
             if torch.cuda.is_available():
                 self.nets = self.nets.cpu()
-                # outputs   = outputs.cpu()
+                outputs   = outputs.cpu()
             predictions = {}
             for k in range(0, len(self.nets)):            
                 arch_str = list(self.samples)[k]
-                predictions[arch_str] = outputs[1][k].detach().cpu().numpy().tolist()  # arch_str -> pred_label
-            assert len(predictions) == len(self.nets)        
+                predictions[arch_str] = outputs[1][k].detach().numpy().tolist()  # arch_str -> pred_label
+            assert len(predictions) == len(self.nets) 
         else:
             predictions = self.pred_labels
 
