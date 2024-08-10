@@ -108,13 +108,11 @@ def Scheme(design, task, weight='base', epochs=None, verbs=None, save=None):
             model.load_state_dict(weight, strict= False)
         else:            
             model.load_state_dict(torch.load('weights/base_fashion'))
-            # model.load_state_dict(torch.load('weights/mnist_best_3'))
-    criterion = nn.NLLLoss()    
-   
+    criterion = nn.NLLLoss()   
     optimizer = optim.Adam(model.QuantumLayer.parameters(), lr=args.qlr)
     train_loss_list, val_loss_list = [], []
     best_val_loss = 0
-
+    print('val_loss: ', evaluate(model, val_loader, args))
     start = time.time()
     for epoch in range(epochs):
         try:
@@ -122,7 +120,7 @@ def Scheme(design, task, weight='base', epochs=None, verbs=None, save=None):
         except Exception as e:
             print('No parameter gate exists')
         train_loss = test(model, train_loader, criterion, args)
-        train_loss_list.append(train_loss)
+        train_loss_list.append(train_loss)        
         val_loss = evaluate(model, val_loader, args)
         val_loss_list.append(val_loss)
         metrics = evaluate(model, test_loader, args)
@@ -153,20 +151,13 @@ if __name__ == '__main__':
     # single = [[i] + [0]*8 for i in range(1,5)]
     enta = [[i] + [i]*4 for i in range(1,5)]
    
-    
-    # enta = [[4, 1, 1, 3, 1]]  #83.738
-    # enta = [[3, 3, 3, 2, 2]]  #83.3
-    # enta = [[3, 3, 3, 1, 2]]
-    # import pickle
-    # with open('search_space_mnist_single', 'rb') as file:
-    #     search_space = pickle.load(file)
-    arch_code = [4, 4]
+    arch_code = [10, 4]
     n_layers = 4
-    n_qubits = 4
+    n_qubits = 10
     single = [[i]+[1]*2*n_layers for i in range(1,n_qubits+1)]
     enta = [[i]+[i+1]*n_layers for i in range(1,n_qubits)]+[[n_qubits]+[1]*n_layers]
     
     design = translator(single, enta, 'full', arch_code)
-    best_model, report = Scheme(design, 'MNIST', 'init', 30)
+    best_model, report = Scheme(design, 'MNIST-10', 'init', 30)
 
     # torch.save(best_model.state_dict(), 'weights/base_fashion')

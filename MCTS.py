@@ -66,7 +66,7 @@ class MCTS:
         self.ROOT = self.nodes[0]
         self.CURT = self.ROOT
         self.weight = 'init'        
-        self.explorations = {'phase': 0, 'iteration': 0, 'single':None, 'enta': None, 'rate': [0.001, 0.002, 0.003], 'rate_decay': [0.006, 0.004, 0.002, 0]}
+        self.explorations = {'phase': 0, 'iteration': 0, 'single':None, 'enta': None, 'rate': [0.001, 0.0005, 0.002], 'rate_decay': [0.006, 0.004, 0.002, 0]}
         self.best = {'acc': 0, 'model':[]}
         self.task = ''
         self.history = [[], []]
@@ -80,12 +80,17 @@ class MCTS:
             
     
     def init_train(self, numbers=50):
-        # random.seed(40)
-        for i in range(0, numbers):
-            net = random.choice(self.search_space)
-            self.search_space.remove(net)
-            self.TASK_QUEUE.append(net)
-            self.sample_nodes.append('random')        
+        
+        print("\npopulate search space...")
+        self.populate_prediction_data()
+        print("finished")        
+        print("\npredict and partition nets in search space...")
+        self.predict_nodes()        
+        self.check_leaf_bags()
+        print("finished")
+        self.print_tree()
+
+        self.sampling_arch(numbers)
         
         print("\ncollect " + str(len(self.TASK_QUEUE)) + " nets for initializing MCTS")
 
@@ -102,7 +107,7 @@ class MCTS:
 
         if self.task != 'MOSI':
             sorted_changes = [k for k, v in sorted(self.samples_compact.items(), key=lambda x: x[1], reverse=True)]
-            epochs = 10
+            epochs = 20
             samples = 10
             file_single = args.file_single
             file_enta = args.file_enta
@@ -189,19 +194,20 @@ class MCTS:
 
         random.seed(self.ITERATION)
 
-        for i in range(0, samples):
-            net = random.choice(self.search_space)
-            while net[0] in qubits:
-                net = random.choice(self.search_space)
-            self.search_space.remove(net)
-            if self.ROOT.base_code != None:
-                net_ = self.ROOT.base_code.copy()
-                net_.append(net)
-            else:
-                net_ = [net]
-            self.TASK_QUEUE.append(net_)
-            self.sample_nodes.append('random')
-        print("\ncollect " + str(len(self.TASK_QUEUE)) + " nets for re-initializing MCTS {}".format(self.ROOT.base_code))
+        self.init_train(samples)
+        # for i in range(0, samples):
+        #     net = random.choice(self.search_space)
+        #     while net[0] in qubits:
+        #         net = random.choice(self.search_space)
+        #     self.search_space.remove(net)
+        #     if self.ROOT.base_code != None:
+        #         net_ = self.ROOT.base_code.copy()
+        #         net_.append(net)
+        #     else:
+        #         net_ = [net]
+        #     self.TASK_QUEUE.append(net_)
+        #     self.sample_nodes.append('random')
+        # print("\ncollect " + str(len(self.TASK_QUEUE)) + " nets for re-initializing MCTS {}".format(self.ROOT.base_code))
 
         self.qubit_used = qubits
 
@@ -272,7 +278,7 @@ class MCTS:
         counter = 0
         for i in self.nodes:
             if i.is_leaf is True:
-                counter += len(i.bag)
+                counter += len(i.bag[0])
         assert counter == len(self.search_space)
 
 
@@ -296,12 +302,44 @@ class MCTS:
             for i in curt_node.kids:
                 UCT.append(i.get_uct(self.Cp))
             if torch.rand(1) < curt_node.delta:
-                id = torch.randint(0, len(curt_node.kids), (1,))
+                # id = torch.randint(0, len(curt_node.kids), (1,))
+                id = np.random.choice(np.argwhere(UCT == np.amin(UCT)).reshape(-1), 1)[0]
             else:
                 id = np.random.choice(np.argwhere(UCT == np.amax(UCT)).reshape(-1), 1)[0]
             curt_node = curt_node.kids[id]
             self.nodes[curt_node.id].counter += 1
         return curt_node
+    
+    def sampling_arch(self, number=10):
+        print('Used Qubits:', self.qubit_used)
+        h = 2 ** (self.tree_height-1) - 1
+        for i in range(0, number):
+            # select
+            target_bin   = self.select()           
+            qubits = self.qubit_used
+            sampled_arch = target_bin.sample_arch(qubits)
+            # NOTED: the sampled arch can be None 
+            if sampled_arch is not None:                    
+                # push the arch into task queue                
+                self.TASK_QUEUE.append(sampled_arch)                    
+                self.sample_nodes.append(target_bin.id-h)
+            else:
+                # trail 1: pick a network from the left leaf
+                for n in self.nodes:
+                    if n.is_leaf == True:
+                        sampled_arch = n.sample_arch(qubits)
+                        if sampled_arch is not None:
+                            print("\nselected node" + str(n.id-7) + " in leaf layer")                            
+                            self.TASK_QUEUE.append(sampled_arch)                                
+                            self.sample_nodes.append(n.id-h)
+                            break
+                        else:
+                            continue
+            if type(sampled_arch[0]) == type([]):
+                arch = sampled_arch[-1]
+            else:
+                arch = sampled_arch
+            self.search_space.remove(arch)        
 
     def insert_job(self, change_code, job_input):
         job = copy.deepcopy(job_input)
@@ -352,7 +390,7 @@ class MCTS:
             arch = archs[i]
             arch_str = json.dumps(np.int8(arch).tolist())
             
-            self.DISPATCHED_JOB[job_str] = acc
+            # self.DISPATCHED_JOB[job_str] = acc
             if self.task != 'MOSI':
                 exploration, gate_numbers = count_gates(arch, self.explorations['rate'])
             else:
@@ -391,7 +429,7 @@ class MCTS:
             period = 5
             number = 50
         else:
-            period = 3
+            period = 1
             number = 10
 
         if (self.ITERATION % period == 0): 
@@ -447,43 +485,7 @@ class MCTS:
         # sampling_node(self, nodes, dataset, self.ITERATION)
         
         random.seed(self.ITERATION)
-        print('Used Qubits:', self.qubit_used)
-        for i in range(0, 10):
-            # select
-            target_bin   = self.select()
-            # if self.ROOT.base_code == None:
-            #     qubits = None
-            # else:
-            #     qubits = self.qubit_used
-            qubits = self.qubit_used
-            sampled_arch = target_bin.sample_arch(qubits)
-            # NOTED: the sampled arch can be None 
-            if sampled_arch is not None:                    
-                # push the arch into task queue
-                if json.dumps(sampled_arch) not in self.DISPATCHED_JOB:
-                    self.TASK_QUEUE.append(sampled_arch)
-                    # self.search_space.remove(sampled_arch)
-                    self.sample_nodes.append(target_bin.id-7)
-            else:
-                # trail 1: pick a network from the left leaf
-                for n in self.nodes:
-                    if n.is_leaf == True:
-                        sampled_arch = n.sample_arch(qubits)
-                        if sampled_arch is not None:
-                            print("\nselected node" + str(n.id-7) + " in leaf layer")                                
-                            # print("sampled arch:", sampled_arch)
-                            if json.dumps(sampled_arch) not in self.DISPATCHED_JOB:
-                                self.TASK_QUEUE.append(sampled_arch)
-                                # self.search_space.remove(sampled_arch)
-                                self.sample_nodes.append(n.id-7)
-                                break
-                        else:
-                            continue
-            if type(sampled_arch[0]) == type([]):
-                arch = sampled_arch[-1]
-            else:
-                arch = sampled_arch
-            self.search_space.remove(arch)                          
+        self.sampling_arch(10)                         
 
 
 def Scheme_mp(design, job, task, weight, i, q=None):
@@ -526,7 +528,7 @@ def analysis_result(samples, ranks):
     mean = np.mean(gate_stat, axis=0)
     return mean
 
-def sampling_arch(search_space, qubits):
+def sampling_qubits(search_space, qubits):
     arch_list = []
     while len(qubits) > 0:    
         arch = random.sample(search_space, 1)
@@ -565,15 +567,15 @@ def create_agent(task, arch_code, node=None):
             search_space_enta = pickle.load(file)
 
         agent = MCTS(search_space_single, 4, arch_code)
-        agent.task = task       
-                  
+        agent.task = task
+        agent.nodes[0].classifier.model.load_state_dict(torch.load('weights/pre_weight'))                  
 
         empty = empty_arch(n_layer, n_qubit)   #layers, qubits
         qubits = random.sample([i for i in range(1, n_qubit+1)],n_single)
-        single = sampling_arch(search_space_single, qubits)
+        single = sampling_qubits(search_space_single, qubits)
 
         qubits = random.sample([i for i in range(1, n_qubit+1)],n_enta)
-        enta = sampling_arch(search_space_enta, qubits)
+        enta = sampling_qubits(search_space_enta, qubits)
 
         single = agent.insert_job(empty[0], single)
         enta = agent.insert_job(empty[1], enta)
@@ -622,7 +624,7 @@ if __name__ == '__main__':
     if task != 'MOSI':
         from schemes import Scheme
         from FusionModel import translator
-        num_processes = 2
+        num_processes = 1
     else:
         from schemes_mosi import Scheme
         from Mosi_Model import translator
@@ -633,6 +635,10 @@ if __name__ == '__main__':
     arch_code = [10, 4]  # qubits, layer
     # arch_code = [4, 4]  #MNIST-4
     # arch_code = [7, 5]
+
+    # with open('mcts_agent_pre', 'rb') as json_data:
+    #     agent = pickle.load(json_data)
+    # torch.save(agent.nodes[0].classifier.model.state_dict(), 'weights/pre_weight')
 
     agent = create_agent(task, arch_code, saved)
     ITERATION = agent.ITERATION
@@ -659,9 +665,9 @@ if __name__ == '__main__':
     print('The best model: ', agent.best['acc'])
     # plot_2d_array(agent.best['model'])
     rank = 20
-    print('<0.8:', sum(value < 0.8 for value in list(agent.samples_true.values())))
-    print('(0.8, 0.82):', sum((value > 0.8) & (value < 0.82)  for value in list(agent.samples_true.values())))
-    print('>0.82:', sum(value > 0.82  for value in list(agent.samples_true.values())))
+    print('<0.55:', sum(value < 0.55 for value in list(agent.samples_true.values())))
+    print('(0.55, 0.58):', sum((value > 0.55) & (value < 0.58)  for value in list(agent.samples_true.values())))
+    print('>0.58:', sum(value > 0.58  for value in list(agent.samples_true.values())))
     print('Gate numbers of top {}: {}'.format(rank, analysis_result(agent.samples_true, rank)))
     
         

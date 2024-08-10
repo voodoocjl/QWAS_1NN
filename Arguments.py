@@ -33,7 +33,7 @@ class Arguments:
                 self.n_qubits   = 10           
                 
                 self.epochs     = 1
-                self.batch_size = 256        
+                self.batch_size = 128        
                 self.sampling = 5
                 self.kernel      = 4
 

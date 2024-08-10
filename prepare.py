@@ -25,7 +25,7 @@ if os.path.exists(weight_path) == False:
     os.makedirs(weight_path)
 weights = os.listdir(weight_path)
 
-def empty_arch(n_layers, n_qubits):            
+def empty_arch(n_layers, n_qubits): 
     single = [[i] + [0]* (2*n_layers) for i in range(1,n_qubits+1)]
     enta = [[i] *(n_layers+1) for i in range(1,n_qubits+1)]
     return [single, enta]
