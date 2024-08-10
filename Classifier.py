@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from sklearn.metrics import accuracy_score
 from Network import Attention, RNN, normalize, FC
 from FusionModel import cir_to_matrix
+import time
 
 torch.cuda.is_available = lambda : False
 
@@ -22,8 +23,9 @@ def get_label(energy, mean = None):
     #     label[i] = energy[i] > energy_mean
 
     x = energy
+    height = 4    #MCTS TREE height
     a = [[i for i in range(len(x))]]
-    for i in range(1,4):
+    for i in range(1,height):
         t = []
         for j in range(2**(i-1)):        
             index = a[j]
@@ -34,12 +36,12 @@ def get_label(energy, mean = None):
             t.append(torch.tensor([item for item in index if x[item] >= mean]))
             t.append(torch.tensor([item for item in index if x[item] < mean]))
         a = t
-    label = torch.zeros((len(x), 3))
+    label = torch.zeros((len(x), height-1))
     for i in range(len(a)):
         index = a[i]
         if len(index):
             for j in range(len(index)):
-                string_num = bin(i)[2:].zfill(3)
+                string_num = bin(i)[2:].zfill(height-1)
                 label[index[j]] = torch.tensor([int(char) for char in string_num])
     return label
 
@@ -69,8 +71,7 @@ class Classifier:
         # self.model            = Mlp(self.input_dim_2d, 6, 2)        
         # self.model            = RNN(arch_code[0], 16, 2)
         self.model            = FC(arch_code)
-        if torch.cuda.is_available():
-            self.model.cuda()
+        
         self.loss_fn          = nn.CrossEntropyLoss() #nn.MSELoss()
         self.l_rate           = 0.001
         self.optimizer        = optim.Adam(self.model.parameters(), lr=self.l_rate, betas=(0.9, 0.999), eps=1e-08)
@@ -109,9 +110,9 @@ class Classifier:
 
     def train(self):
         if self.training_counter == 0:
-            self.epochs = 500
+            self.epochs = 1000
         else:
-            self.epochs = 100
+            self.epochs = 500
         self.training_counter += 1
         # in a rare case, one branch has no networks
         if len(self.nets) == 0:
@@ -119,12 +120,19 @@ class Classifier:
         # linear, mlp
         nets = self.nets
         # labels = 2 * self.labels - 1
-        labels = self.labels
-        # maeinv = self.maeinv
-        # train_data = TensorDataset(nets, maeinv, labels)
+        labels = self.labels        
         train_data = TensorDataset(nets, labels)
-
-        train_loader = DataLoader(train_data, batch_size=128, shuffle=True)
+        train_loader = DataLoader(train_data, batch_size=64, shuffle=True)
+        if torch.cuda.is_available():
+            self.model.cuda()
+        
+        for param in self.model.parameters():
+            param.requires_grad = False
+        for param in [self.model.cls1.weight, self.model.cls1.bias,
+                    self.model.cls2.weight, self.model.cls2.bias,
+                    self.model.cls3.weight, self.model.cls3.bias]:
+            param.requires_grad = True
+                    
         for epoch in range(self.epochs):
             for x, y in train_loader:
                 # clear grads
@@ -136,14 +144,17 @@ class Classifier:
                 # loss = loss_mae + loss_t
                 loss = loss_t
                 loss.backward()  # back props
-                nn.utils.clip_grad_norm_(self.model.parameters(), 5)
+                # grads = [param.grad.detach().flatten() for param in self.model.parameters() if param.grad is not None]
+                # norm = torch.cat(grads).norm()
+                # print('Grad Norm: ', norm)
+                # nn.utils.clip_grad_norm_(self.model.parameters(), 5)
                 self.optimizer.step()  # update the parameters
 
         # training accuracy
         pred = self.model(nets)
         
-        pred_label = pred[1].float()
-        true_label = self.labels.cpu()
+        pred_label = pred[1].float().cpu()
+        true_label = self.labels.cpu()        
         acc = accuracy_score(true_label.numpy(), pred_label.numpy())
         self.training_accuracy.append(acc)    
 
@@ -165,45 +176,50 @@ class Classifier:
                 
         if torch.cuda.is_available():
             remaining_archs = remaining_archs.cuda()
-        
-        outputs = self.model(remaining_archs)       
-
+        t1 = time.time()
+        outputs = self.model(remaining_archs)
+        print('Prediction time: ', time.time()-t1)
         if torch.cuda.is_available():
             remaining_archs = remaining_archs.cpu()
-            outputs         = outputs.cpu()
-        diff = -(outputs[0][:, 0, :] - outputs[0][:, 1, :]).abs().detach()
-        result = {}
-        delta = {}
-        for k in range(0, len(remaining_archs)):            
-            arch_str = list(remaining.keys())[k]
-            result[arch_str] = outputs[1][k].tolist()
-            delta[arch_str] = diff[k]
-        assert len(result) == len(remaining)
-        return result, delta
+            # outputs         = outputs.cpu()
+        diff = -(outputs[0][:, 0, :] - outputs[0][:, 1, :]).abs().detach().cpu()
+        result = []        
+        result.append(list(remaining.keys()))
+        result.append( outputs[1].tolist())
+        
+        assert len(result[0]) == len(remaining)
+        return result, diff
 
 
     def split_predictions(self, remaining, arch, layer=0, delta = None):
-        assert type(remaining) == type({})
-        samples_badness = {}
-        samples_goodies = {}
-        delta_badness = {}
-        delta_goodies = {}
-        if len(remaining) == 0:
-            return samples_goodies, samples_badness, delta_goodies, delta_badness, []
-        if layer == 0:
-            predictions, delta = self.predict(remaining, arch)  # arch_str -> pred_test_mae
-        else:
-            predictions = remaining
+        # assert type(remaining) == type({})
+        samples_badness = [[], []]
+        samples_goodies = [[], []]
+        delta_badness = []
+        delta_goodies = []
 
-        for k, v in predictions.items():
+        if layer == 0:
+            predictions, delta = self.predict(remaining, arch)  # arch_str -> pred_test_mae            
+        else:
+           predictions = remaining
+           remaining = remaining[0]
+           if len(remaining) == 0:
+            return samples_goodies, samples_badness, delta_goodies, delta_badness, []
+           
+
+        for index, (k, v) in enumerate(zip(predictions[0], predictions[1])):
             if v[layer] == 1 :                
-                samples_badness[k] = v
-                delta_badness[k] = delta[k]
+                samples_badness[0].append(k)
+                samples_badness[1].append(v)
+                delta_badness.append(index)  # bad index
             else:
-                samples_goodies[k] = v
-                delta_goodies[k] = delta[k]
-        assert len(samples_badness) + len(samples_goodies) == len(remaining)
-        delta = torch.exp(torch.stack(list(delta.values()))).mean(dim=0)
+                samples_goodies[0].append(k)
+                samples_goodies[1].append(v)
+                delta_goodies.append(index)
+        delta_badness = delta[delta_badness]
+        delta_goodies = delta[delta_goodies]
+        assert len(samples_badness[0]) + len(samples_goodies[0]) == len(remaining)
+        delta = torch.exp(delta).mean(dim=0)
         return samples_goodies, samples_badness, delta_goodies, delta_badness, delta
 
     """
@@ -250,7 +266,7 @@ class Classifier:
             for k in range(0, len(self.nets)):            
                 arch_str = list(self.samples)[k]
                 predictions[arch_str] = outputs[1][k].detach().numpy().tolist()  # arch_str -> pred_label
-            assert len(predictions) == len(self.nets)        
+            assert len(predictions) == len(self.nets) 
         else:
             predictions = self.pred_labels
 

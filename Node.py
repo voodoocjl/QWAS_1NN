@@ -63,8 +63,8 @@ class Node:
         if not self.is_leaf:
             self.bad_labels.clear()       
             self.good_labels.clear()
-            self.good_kid_delta.clear()
-            self.bad_kid_delta.clear()
+            self.good_kid_delta = []
+            self.bad_kid_delta = []
 
     def set_arch(self, phase, code):
         if phase == 0:            
@@ -115,21 +115,17 @@ class Node:
         else:
             name += self.pad_str_to_8chars('acc: ---- ')           
 
-
-        name += self.pad_str_to_8chars('sp:' + str(len(self.bag)))        
+        if self.is_root:
+            name += self.pad_str_to_8chars('sp:' + str(len(self.bag)))
+        else:
+            name += self.pad_str_to_8chars('sp:' + str(len(self.bag[0])))
 
         parent = '----'
         if self.parent is not None:
             parent = self.parent.get_name()
         parent = self.pad_str_to_8chars(parent)
 
-        name += (' parent:' + parent)
-        # kids = ''
-        # kid = ''
-        # for k in self.kids:
-        #     kid = self.pad_str_to_8chars(k.get_name())
-        #     kids += kid
-        # name += (' kids:' + kids)
+        name += (' parent:' + parent)        
         if self.is_leaf:
             name = Color.YELLOW + name +Color.RESET
         elif self.layer == 2:
@@ -230,9 +226,9 @@ class Node:
 
 
     def sample_arch(self, qubits):
-        if len(self.bag) == 0:
+        if len(self.bag[0]) == 0:
             return None
-        net_str = random.choice(list(self.bag.keys()))
+        net_str = random.choice(self.bag[0])
         type_ = type(eval(net_str)[-1])
         if type_ == list:
             qubit = eval(net_str)[-1][0]
@@ -250,11 +246,8 @@ class Node:
             if i > 200:
                 return None
             
-        del self.bag[net_str]
-        parent_node = self.parent
-        for i in range(self.layer):
-            del parent_node.bag[net_str]
-            parent_node = parent_node.parent
+        self.bag[0].remove(net_str)
+       
         return json.loads(net_str)
 
 
