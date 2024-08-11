@@ -112,7 +112,7 @@ def Scheme(design, task, weight='base', epochs=None, verbs=None, save=None):
     optimizer = optim.Adam(model.QuantumLayer.parameters(), lr=args.qlr)
     train_loss_list, val_loss_list = [], []
     best_val_loss = 0
-    print('val_loss: ', evaluate(model, val_loader, args))
+    # print('val_loss: ', evaluate(model, val_loader, args))
     start = time.time()
     for epoch in range(epochs):
         try:

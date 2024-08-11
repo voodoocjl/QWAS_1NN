@@ -429,7 +429,7 @@ class MCTS:
             period = 5
             number = 50
         else:
-            period = 1
+            period = 3
             number = 10
 
         if (self.ITERATION % period == 0): 
@@ -624,7 +624,7 @@ if __name__ == '__main__':
     if task != 'MOSI':
         from schemes import Scheme
         from FusionModel import translator
-        num_processes = 1
+        num_processes = 2
     else:
         from schemes_mosi import Scheme
         from Mosi_Model import translator

@@ -129,8 +129,8 @@ class Classifier:
         for param in self.model.parameters():
             param.requires_grad = False
         for param in [self.model.cls1.weight, self.model.cls1.bias,
-                    self.model.cls2.weight, self.model.cls2.bias,
-                    self.model.cls3.weight, self.model.cls3.bias]:
+                      self.model.cls2.weight, self.model.cls2.bias,
+                      self.model.cls3.weight, self.model.cls3.bias]:
             param.requires_grad = True
                     
         for epoch in range(self.epochs):
