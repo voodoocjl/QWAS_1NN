@@ -86,6 +86,21 @@ def evaluate(model, data_loader, args):
     metrics = accuracy    
     return metrics
 
+def Scheme_eval(design, task, weight):
+    result = {}  
+    args = Arguments(task) 
+    path = 'weights/'  
+    if task == 'MOSI':
+        dataloader = MOSIDataLoaders(args)
+    else:
+        dataloader = MNISTDataLoaders(args, task)
+   
+    train_loader, val_loader, test_loader = dataloader
+    model = QNet(args, design).to(args.device)
+    model.load_state_dict(torch.load(path+weight), strict= False)
+    result['mae'] = evaluate(model, test_loader, args)
+    return model, result
+
 def Scheme(design, task, weight='base', epochs=None, verbs=None, save=None):
     seed = 42
     random.seed(seed)
@@ -105,7 +120,7 @@ def Scheme(design, task, weight='base', epochs=None, verbs=None, save=None):
     model = QNet(args, design).to(args.device)
     if weight != 'init':
         if weight != 'base':
-            model.load_state_dict(weight, strict= False)
+            model.load_state_dict(weight, strict= False)            
         else:            
             model.load_state_dict(torch.load('weights/base_fashion'))
     criterion = nn.NLLLoss()   

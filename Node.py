@@ -37,6 +37,7 @@ class Node:
         self.good_labels   = {}
         self.good_kid_delta = {}
         self.bad_kid_delta = {}
+        self.delta_history = []
 
         self.is_leaf       = True
         self.id            = Node.obj_counter
@@ -179,7 +180,9 @@ class Node:
     def predict(self, arch, method = None):
         if self.parent == None and self.is_root == True and self.is_leaf == False:
             self.good_kid_data, self.bad_kid_data, self.good_kid_delta, self.bad_kid_delta, delta = self.classifier.split_predictions(self.bag, arch)
-            self.delta = delta[self.layer]
+            self.delta = max(delta[self.layer], 0.1)
+            print(delta)
+            self.delta_history.append(delta)
         elif self.is_leaf:
             if self.is_good_kid:
                 self.bag = self.parent.good_kid_data

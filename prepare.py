@@ -15,6 +15,14 @@ def check_file(task):
             writer = csv.writer(res)
             writer.writerow(['iteration', 'arch_code', 'ACC'])
 
+def check_file_with_prefix(path, prefix):
+    files = os.listdir(path)
+    for file in files:
+        if os.path.isfile(os.path.join(path, file)):
+            if file.startswith(prefix):
+                return file
+    return False
+
 state_path = 'states'
 if os.path.exists(state_path) == False:
     os.makedirs(state_path)

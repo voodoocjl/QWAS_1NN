@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from Node import Node, Color
 # from schemes import Scheme
+import datetime
 from FusionModel import cir_to_matrix 
 import time
 from sampling import sampling_node
@@ -119,6 +120,8 @@ class MCTS:
             file_enta = 'search_space_mosi_enta'
         sorted_changes = [change for change in sorted_changes if len(eval(change)) == self.stages]
 
+        filename = [file_single, file_enta]
+
         # pick best 2 and randomly choose one
         random.seed(self.ITERATION)
         
@@ -134,10 +137,7 @@ class MCTS:
         # if len(qubits) == arch_code[0]:
         #     qubits = [code[0] for code in self.ROOT.base_code]
         print('Current Change: ', best_change)
-        
-        # with open('data/best_changes', 'wb') as file:
-        #     pickle.dump(best_change, file)
-
+       
         if phase == 0:
             best_change_full = self.insert_job(self.explorations['single'], best_change)
             single = best_change_full
@@ -148,8 +148,17 @@ class MCTS:
             enta = best_change_full
         arch = cir_to_matrix(single, enta, self.ARCH_CODE)
         # plot_2d_array(arch)
-        design = translator(single, enta, 'full', self.ARCH_CODE)        
-        best_model, report = Scheme(design, self.task, strategy, epochs)
+        design = translator(single, enta, 'full', self.ARCH_CODE)
+        model_weight = check_file_with_prefix('weights', 'weight_{}_'.format(self.ITERATION))        
+        if model_weight:            
+            best_model, report = Scheme_eval(design, self.task, model_weight)
+            print('Test ACC: ', report['mae'])
+        else:
+            best_model, report = Scheme(design, self.task, strategy, epochs)
+            current_time = datetime.datetime.now()
+            formatted_time = current_time.strftime('%m-%d-%H')
+            torch.save(best_model.state_dict(), 'weights/weight_{}_{}'.format(self.ITERATION, formatted_time))
+
         self.weight = best_model.state_dict()
         self.samples_true[json.dumps(np.int8(arch).tolist())] = report['mae']
         self.samples_compact = {}
@@ -157,19 +166,14 @@ class MCTS:
             self.best['acc'] = report['mae']
             self.best['model'] = arch
 
-        import datetime        
-        current_time = datetime.datetime.now()
-        formatted_time = current_time.strftime('%m-%d-%H')
-        torch.save(best_model.state_dict(), 'weights/weight_{}_{}'.format(self.ITERATION, formatted_time))
-
         with open('results_{}_fine.csv'.format(self.task), 'a+', newline='') as res:
             writer = csv.writer(res)
             metrics = report['mae']
-            writer.writerow([self.ITERATION, best_change_full, metrics])
+            writer.writerow([self.ITERATION, best_change_full, metrics])        
         
         if self.stages == 3:
             self.stages = 0
-            self.history[phase].append(qubits)
+            self.history[phase].append(qubits)            
             phase = 1 - phase       # switch phase
             self.ROOT.base_code = None
             # if self.history[phase] != []:
@@ -183,14 +187,19 @@ class MCTS:
             self.explorations['iteration'] += 1
             print(Color.BLUE + 'Phase Switch: {}'.format(phase) + Color.RESET)
 
-        
         if phase == 0:
-            filename = file_single
+            arch_last = single
         else:
-            filename = file_enta
-        with open(filename, 'rb') as file:
+            arch_last = enta
+        with open(filename[phase], 'rb') as file:
             search_space = pickle.load(file)
-        self.search_space = [x for x in search_space if x[0] not in qubits] 
+         # remove last configuration
+        for i in range(len(arch_last)):
+            try:
+                search_space.remove(arch_last[i])
+            except ValueError:
+                pass
+        self.search_space = [x for x in search_space if x[0] not in qubits]       
 
         random.seed(self.ITERATION)
 
@@ -475,9 +484,10 @@ class MCTS:
         self.populate_prediction_data()
         print("finished")        
         print("\npredict and partition nets in search space...")
-        self.predict_nodes()        
+        self.predict_nodes() 
         self.check_leaf_bags()
         print("finished")
+        print(self.ROOT.delta_history[-1])
         self.print_tree()
         # # sampling nodes
         # # nodes = [0, 1, 2, 3, 8, 12, 13, 14, 15]
@@ -589,8 +599,9 @@ def create_agent(task, arch_code, node=None):
         agent.explorations['enta'] = enta
         
         design = translator(single, enta, 'full', arch_code)
-        if weights and weights[-1] == 'init_weight':            
-            agent.weight = torch.load(os.path.join(weight_path, weights[-1]))
+        weight_file = check_file_with_prefix(weight_path, 'init_weight_mnist')          
+        if weight_file:
+            agent.weight = torch.load(os.path.join(weight_path, weight_file))
         else:
             if task != 'MOSI':
                 best_model, report = Scheme(design, task, 'init', 30, None, 'save')
@@ -616,13 +627,13 @@ if __name__ == '__main__':
     mp.set_start_method('spawn')
 
     saved = None
-    # saved = 'states/mcts_agent_329'
+    # saved = 'states/mcts_agent_150'
     # task = 'FASHION'
-    # task = 'MNIST'
-    task = 'MNIST-10'
+    task = 'MNIST'
+    # task = 'MNIST-10'
     # task = 'MOSI'
     if task != 'MOSI':
-        from schemes import Scheme
+        from schemes import Scheme, Scheme_eval
         from FusionModel import translator
         num_processes = 2
     else:
@@ -632,13 +643,13 @@ if __name__ == '__main__':
     
     check_file(task)
     
-    arch_code = [10, 4]  # qubits, layer
-    # arch_code = [4, 4]  #MNIST-4
+    # arch_code = [10, 4]  # qubits, layer
+    arch_code = [4, 4]  #MNIST-4
     # arch_code = [7, 5]
 
-    # with open('mcts_agent_pre', 'rb') as json_data:
-    #     agent = pickle.load(json_data)
-    # torch.save(agent.nodes[0].classifier.model.state_dict(), 'weights/pre_weight')
+    with open('mcts_agent_pre', 'rb') as json_data:
+        agent = pickle.load(json_data)
+    torch.save(agent.nodes[0].classifier.model.state_dict(), 'weights/pre_weight')
 
     agent = create_agent(task, arch_code, saved)
     ITERATION = agent.ITERATION
@@ -665,9 +676,9 @@ if __name__ == '__main__':
     print('The best model: ', agent.best['acc'])
     # plot_2d_array(agent.best['model'])
     rank = 20
-    print('<0.55:', sum(value < 0.55 for value in list(agent.samples_true.values())))
-    print('(0.55, 0.58):', sum((value > 0.55) & (value < 0.58)  for value in list(agent.samples_true.values())))
-    print('>0.58:', sum(value > 0.58  for value in list(agent.samples_true.values())))
+    print('<0.8:', sum(value < 0.8 for value in list(agent.samples_true.values())))
+    print('(0.8, 0.82):', sum((value > 0.8) & (value < 0.82)  for value in list(agent.samples_true.values())))
+    print('>0.82:', sum(value > 0.82  for value in list(agent.samples_true.values())))
     print('Gate numbers of top {}: {}'.format(rank, analysis_result(agent.samples_true, rank)))
     
         

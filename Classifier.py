@@ -127,11 +127,11 @@ class Classifier:
             self.model.cuda()
         
         for param in self.model.parameters():
-            param.requires_grad = False
+            param.requires_grad = True
         for param in [self.model.cls1.weight, self.model.cls1.bias,
                       self.model.cls2.weight, self.model.cls2.bias,
                       self.model.cls3.weight, self.model.cls3.bias]:
-            param.requires_grad = True
+            param.requires_grad = False
                     
         for epoch in range(self.epochs):
             for x, y in train_loader:
@@ -219,6 +219,7 @@ class Classifier:
         delta_badness = delta[delta_badness]
         delta_goodies = delta[delta_goodies]
         assert len(samples_badness[0]) + len(samples_goodies[0]) == len(remaining)
+
         delta = torch.exp(delta).mean(dim=0)
         return samples_goodies, samples_badness, delta_goodies, delta_badness, delta
 
